@@ -24,11 +24,18 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(await file.arrayBuffer());
         try {
           const pdfParseModule = await import('pdf-parse');
-          const pdfParse: any = (pdfParseModule as any).default ?? pdfParseModule;
-          const data = pdfParse.PDFParse
-            ? await new pdfParse.PDFParse({ data: buffer }).getText()
-            : await pdfParse(buffer);
-          text = data?.text ?? '';
+          const pdfParseAny: any = (pdfParseModule as any).default ?? pdfParseModule;
+          const PdfParseClass = pdfParseAny.PDFParse ?? (pdfParseModule as any).PDFParse;
+
+          if (typeof pdfParseAny === 'function') {
+            const data = await pdfParseAny(buffer);
+            text = data?.text ?? '';
+          } else if (PdfParseClass) {
+            const data = await new PdfParseClass({ data: buffer }).getText();
+            text = data?.text ?? '';
+          } else {
+            throw new Error('Unable to resolve pdf-parse parser implementation.');
+          }
         } catch (pdfErr) {
           console.error('PDF parse error:', pdfErr);
           return NextResponse.json({ error: 'Failed to parse PDF. Try a .txt file instead.' }, { status: 400 });
