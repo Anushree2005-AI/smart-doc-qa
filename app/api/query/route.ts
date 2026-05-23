@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { retrieveTopChunks } from '@/lib/embeddings';
-import { answerWithContext } from '@/lib/groq';
+import { retrieveTopChunks } from '../../../lib/embeddings';
+import { answerWithContext } from '../../../lib/groq';
 
 export async function POST(req: NextRequest) {
   try {

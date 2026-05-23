@@ -1,8 +1,6 @@
 export interface TextChunk {
   id: number;
   text: string;
-  startChar: number;
-  endChar: number;
 }
 
 export function chunkText(text: string, chunkSize = 400, overlap = 80): TextChunk[] {
@@ -12,8 +10,8 @@ export function chunkText(text: string, chunkSize = 400, overlap = 80): TextChun
 
   while (start < text.length) {
     const end = Math.min(start + chunkSize, text.length);
-    // Try to break at sentence boundary
     let breakPoint = end;
+
     if (end < text.length) {
       const lastPeriod = text.lastIndexOf('.', end);
       if (lastPeriod > start + chunkSize * 0.5) {
@@ -21,16 +19,14 @@ export function chunkText(text: string, chunkSize = 400, overlap = 80): TextChun
       }
     }
 
-    chunks.push({
-      id: id++,
-      text: text.slice(start, breakPoint).trim(),
-      startChar: start,
-      endChar: breakPoint,
-    });
+    const chunk = text.slice(start, breakPoint).trim();
+    if (chunk.length > 20) {
+      chunks.push({ id: id++, text: chunk });
+    }
 
     start = breakPoint - overlap;
     if (start >= text.length) break;
   }
 
-  return chunks.filter(c => c.text.length > 20);
+  return chunks;
 }

@@ -1,9 +1,13 @@
 'use client';
-import { useState, useRef } from 'react';
-import { Upload, Send, FileText, Loader2, BookOpen, X } from 'lucide-react';
+import { useState } from 'react';
+import { Upload, Send, FileText, Loader2, BookOpen } from 'lucide-react';
 
 interface Chunk { id: number; text: string; score?: number; }
-interface Message { role: 'user' | 'assistant'; content: string; sources?: Chunk[]; }
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: Chunk[];
+}
 
 export default function Home() {
   const [chunks, setChunks] = useState<Chunk[]>([]);
@@ -13,7 +17,6 @@ export default function Home() {
   const [querying, setQuerying] = useState(false);
   const [fileName, setFileName] = useState('');
   const [expandedSource, setExpandedSource] = useState<number | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -21,23 +24,32 @@ export default function Home() {
     setUploading(true);
     setMessages([]);
     setFileName(file.name);
+    setChunks([]);
 
     const fd = new FormData();
     fd.append('file', file);
 
     try {
       const res = await fetch('/api/embed', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error('Server error: ' + text.slice(0, 200));
+      }
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
       setChunks(data.chunks);
-      setMessages([{ 
-        role: 'assistant', 
-        content: `✓ Document loaded: **${file.name}** — ${data.totalChunks} sections indexed. Ask me anything about it.`
+      setMessages([{
+        role: 'assistant',
+        content: `Document loaded: ${file.name} — ${data.totalChunks} sections indexed. Ask me anything about it.`
       }]);
-    } catch (err) {
-      alert('Upload failed: ' + err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setMessages([{ role: 'assistant', content: 'Upload failed: ' + msg }]);
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   }
 
@@ -55,13 +67,16 @@ export default function Home() {
         body: JSON.stringify({ question, chunks }),
       });
       const data = await res.json();
-      setMessages(m => [...m, { 
-        role: 'assistant', 
-        content: data.answer || data.error,
-        sources: data.sources 
+      setMessages(m => [...m, {
+        role: 'assistant',
+        content: data.answer || data.error || 'No response.',
+        sources: data.sources
       }]);
     } catch {
-      setMessages(m => [...m, { role: 'assistant', content: 'Something went wrong. Please try again.' }]);
+      setMessages(m => [...m, {
+        role: 'assistant',
+        content: 'Something went wrong. Please try again.'
+      }]);
     } finally {
       setQuerying(false);
     }
@@ -69,6 +84,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
+
       {/* Header */}
       <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -80,23 +96,37 @@ export default function Home() {
             RAG-powered
           </span>
         </div>
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+
+        {/* ✅ FIX: label wraps input directly — no ref needed */}
+        <label
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors
+            ${uploading
+              ? 'bg-gray-700 opacity-60 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-500'}`}
         >
-          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-          {uploading ? 'Processing...' : fileName ? 'Replace Document' : 'Upload Document'}
-        </button>
-        <input ref={fileRef} type="file" accept=".pdf,.txt,.md" className="hidden" onChange={handleUpload} />
+          {uploading
+            ? <><Loader2 size={14} className="animate-spin" /> Processing...</>
+            : <><Upload size={14} /> {fileName ? 'Replace Document' : 'Upload Document'}</>
+          }
+          <input
+            type="file"
+            accept=".pdf,.txt,.md"
+            className="hidden"
+            onChange={handleUpload}
+            disabled={uploading}
+          />
+        </label>
       </header>
 
-      {/* Chat Area */}
+      {/* Chat area */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 max-w-4xl mx-auto w-full">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500 gap-4">
             <FileText size={48} className="opacity-30" />
-            <p className="text-center">Upload a PDF or text document to begin.<br />Ask questions and get cited answers.</p>
+            <p className="text-center text-sm">
+              Upload a PDF or text document to begin.<br />
+              Ask questions and get cited answers.
+            </p>
           </div>
         )}
 
@@ -108,8 +138,8 @@ export default function Home() {
             </div>
             <div className={`max-w-2xl space-y-3 ${msg.role === 'user' ? 'items-end flex flex-col' : ''}`}>
               <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap
-                ${msg.role === 'user' 
-                  ? 'bg-blue-600 text-white rounded-tr-sm' 
+                ${msg.role === 'user'
+                  ? 'bg-blue-600 text-white rounded-tr-sm'
                   : 'bg-gray-800 text-gray-100 rounded-tl-sm'}`}>
                 {msg.content}
               </div>
@@ -150,16 +180,16 @@ export default function Home() {
         )}
       </div>
 
-      {/* Input */}
+      {/* Input bar */}
       <div className="border-t border-gray-800 px-6 py-4">
         <div className="max-w-4xl mx-auto flex gap-3">
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAsk()}
-            placeholder={chunks.length ? "Ask a question about your document..." : "Upload a document first"}
+            placeholder={chunks.length ? 'Ask a question about your document...' : 'Upload a document first'}
             disabled={!chunks.length || querying}
-            className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm 
+            className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm
               placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-40 transition-colors"
           />
           <button
@@ -171,7 +201,9 @@ export default function Home() {
           </button>
         </div>
         {chunks.length > 0 && (
-          <p className="text-xs text-gray-600 text-center mt-2">{fileName} · {chunks.length} chunks indexed</p>
+          <p className="text-xs text-gray-600 text-center mt-2">
+            {fileName} · {chunks.length} chunks indexed
+          </p>
         )}
       </div>
     </main>

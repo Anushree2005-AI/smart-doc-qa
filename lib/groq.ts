@@ -1,6 +1,12 @@
 import Groq from 'groq-sdk';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error('GROQ_API_KEY is not set. Add it to your .env.local file.');
+  }
+  return new Groq({ apiKey });
+}
 
 export async function answerWithContext(
   question: string,
@@ -21,6 +27,7 @@ Question: ${question}
 
 Answer:`;
 
+  const groq = getGroqClient();
   const response = await groq.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     messages: [{ role: 'user', content: prompt }],

@@ -1,12 +1,9 @@
-// Simple TF-IDF style embeddings for serverless (no heavy model needed)
-// For production you'd use OpenAI/Cohere embeddings
-
 export function tokenize(text: string): Map<string, number> {
   const words = text.toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter(w => w.length > 2);
-  
+
   const freq = new Map<string, number>();
   for (const word of words) {
     freq.set(word, (freq.get(word) || 0) + 1);
@@ -16,7 +13,6 @@ export function tokenize(text: string): Map<string, number> {
 
 export function cosineSimilarity(a: Map<string, number>, b: Map<string, number>): number {
   let dot = 0, normA = 0, normB = 0;
-  
   for (const [word, countA] of a) {
     const countB = b.get(word) || 0;
     dot += countA * countB;
@@ -25,7 +21,6 @@ export function cosineSimilarity(a: Map<string, number>, b: Map<string, number>)
   for (const [, countB] of b) {
     normB += countB * countB;
   }
-  
   return normA && normB ? dot / (Math.sqrt(normA) * Math.sqrt(normB)) : 0;
 }
 
@@ -35,12 +30,10 @@ export function retrieveTopChunks(
   topK = 5
 ) {
   const queryVec = tokenize(query);
-  
   const scored = chunks.map(chunk => ({
     ...chunk,
     score: cosineSimilarity(queryVec, tokenize(chunk.text)),
   }));
-
   return scored
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)

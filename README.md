@@ -2,19 +2,23 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+From the project root, install dependencies and run the development server:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd c:\Users\user\Downloads\smart-doc-qa\smart-doc-qa\smart-doc-qa
+npm install
+npm run dev:win
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000) with your browser.
+
+If the app needs Groq for answering questions, create a `.env.local` file in the project root with:
+
+```env
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+This project is built with Next.js 16, so Node.js 18 or 20 is recommended for best compatibility.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
