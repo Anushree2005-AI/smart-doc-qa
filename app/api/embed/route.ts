@@ -12,26 +12,23 @@ export async function POST(req: NextRequest) {
 
     const fileName = file.name || 'document';
     const buffer = Buffer.from(await file.arrayBuffer());
+    
     let text = '';
-
-    if (fileName.toLowerCase().endsWith('.pdf')) {
-      try {
-        const pdfParse = require('pdf-parse/lib/pdf-parse.js');
-        const data = await pdfParse(buffer);
-        text = data.text || '';
-      } catch (pdfErr) {
-        console.error('PDF extraction failed:', pdfErr);
-        text = buffer.toString('latin1');
-      }
-    } else {
+    try {
       text = buffer.toString('utf-8');
+    } catch (e) {
+      text = buffer.toString('latin1');
     }
 
-    if (!text.trim()) {
-      return NextResponse.json({ error: 'Uploaded document is empty' }, { status: 400 });
+    if (!text || !text.trim()) {
+      return NextResponse.json({ error: 'Uploaded document is empty or not readable' }, { status: 400 });
     }
 
-    const chunks = chunkText(text);
+    const chunks = chunkText(text.trim());
+
+    if (!chunks.length) {
+      return NextResponse.json({ error: 'No content chunks could be extracted' }, { status: 400 });
+    }
 
     return NextResponse.json({
       chunks: chunks.map(({ id, text }) => ({ id, text })),
