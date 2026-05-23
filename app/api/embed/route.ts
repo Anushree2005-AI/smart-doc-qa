@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PDFParse } from 'pdf-parse';
 import { chunkText } from '@/lib/chunker';
 
 export async function POST(req: NextRequest) {
@@ -16,9 +15,14 @@ export async function POST(req: NextRequest) {
     let text = '';
 
     if (fileName.toLowerCase().endsWith('.pdf')) {
-      const parser = new PDFParse({ data: buffer });
-      const result = await parser.getText();
-      text = result.text;
+      try {
+        const pdfParse = require('pdf-parse/lib/pdf-parse.js');
+        const data = await pdfParse(buffer);
+        text = data.text || '';
+      } catch (pdfErr) {
+        console.error('PDF extraction failed:', pdfErr);
+        text = buffer.toString('latin1');
+      }
     } else {
       text = buffer.toString('utf-8');
     }
