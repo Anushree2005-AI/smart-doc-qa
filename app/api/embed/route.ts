@@ -1,42 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { chunkText } from '@/lib/chunker';
+import { chunkText } from '../../../lib/chunker';
+
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File | null;
-
-    if (!file) {
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
-    }
-
-    const fileName = file.name || 'document';
-    const buffer = Buffer.from(await file.arrayBuffer());
-    
     let text = '';
-    try {
-      text = buffer.toString('utf-8');
-    } catch (e) {
-      text = buffer.toString('latin1');
+    const contentType = req.headers.get('content-type') || '';
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await req.formData();
+      const file = formData.get('file') as File;
+
+      if (!file) {
+        return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      }
+
+      const isPdf = file.type === 'application/pdf'
+        || file.type === 'application/x-pdf'
+        || file.name.toLowerCase().endsWith('.pdf');
+
+      if (isPdf) {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        try {
+          const pdfParseModule = await import('pdf-parse');
+          const pdfParse: any = (pdfParseModule as any).default ?? pdfParseModule;
+          const data = pdfParse.PDFParse
+            ? await new pdfParse.PDFParse({ data: buffer }).getText()
+            : await pdfParse(buffer);
+          text = data?.text ?? '';
+        } catch (pdfErr) {
+          console.error('PDF parse error:', pdfErr);
+          return NextResponse.json({ error: 'Failed to parse PDF. Try a .txt file instead.' }, { status: 400 });
+        }
+      } else {
+        text = await file.text();
+      }
+    } else {
+      return NextResponse.json({ error: 'Invalid request format' }, { status: 400 });
     }
 
     if (!text || !text.trim()) {
-      return NextResponse.json({ error: 'Uploaded document is empty or not readable' }, { status: 400 });
+      return NextResponse.json({ error: 'No text could be extracted from the file' }, { status: 400 });
     }
 
-    const chunks = chunkText(text.trim());
-
-    if (!chunks.length) {
-      return NextResponse.json({ error: 'No content chunks could be extracted' }, { status: 400 });
-    }
+    const chunks = chunkText(text, 400, 80);
 
     return NextResponse.json({
-      chunks: chunks.map(({ id, text }) => ({ id, text })),
+      chunks: chunks.map(c => ({ id: c.id, text: c.text })),
       totalChunks: chunks.length,
-      fileName,
+      preview: text.slice(0, 200)
     });
-  } catch (err) {
-    console.error('Upload error:', err);
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+
+  } catch (err: unknown) {
+    console.error('Embed route error:', err);
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: `Server error: ${message}` }, { status: 500 });
   }
 }
