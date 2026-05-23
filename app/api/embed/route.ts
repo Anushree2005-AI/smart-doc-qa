@@ -5,22 +5,22 @@ import { chunkText } from '@/lib/chunker';
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get('file');
+    const file = formData.get('file') as File | null;
 
-    if (!file || !(file instanceof Blob)) {
+    if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    const fileName = 'name' in file ? file.name : 'document';
+    const fileName = file.name || 'document';
     const buffer = Buffer.from(await file.arrayBuffer());
     let text = '';
 
     if (fileName.toLowerCase().endsWith('.pdf')) {
       const parser = new PDFParse({ data: buffer });
-      const data = await parser.getText();
-      text = data.text;
+      const result = await parser.getText();
+      text = result.text;
     } else {
-      text = new TextDecoder('utf-8').decode(buffer);
+      text = buffer.toString('utf-8');
     }
 
     if (!text.trim()) {
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       fileName,
     });
   } catch (err) {
-    console.error(err);
+    console.error('Upload error:', err);
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
   }
 }
