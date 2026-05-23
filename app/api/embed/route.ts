@@ -1,29 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { retrieveTopChunks } from '@/lib/embeddings';
-import { answerWithContext } from '@/lib/groq';
+import { PDFParse } from 'pdf-parse';
+import { chunkText } from '@/lib/chunker';
 
 export async function POST(req: NextRequest) {
   try {
-    const { question, chunks } = await req.json();
+    const formData = await req.formData();
+    const file = formData.get('file');
 
-    if (!question || !chunks?.length) {
-      return NextResponse.json({ error: 'Missing question or document chunks' }, { status: 400 });
+    if (!file || !(file instanceof Blob)) {
+      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    const topChunks = retrieveTopChunks(question, chunks, 5);
+    const fileName = 'name' in file ? file.name : 'document';
+    const buffer = Buffer.from(await file.arrayBuffer());
+    let text = '';
 
-    if (!topChunks.length) {
-      return NextResponse.json({ 
-        answer: "No relevant sections found in the document for your question.",
-        sources: []
-      });
+    if (fileName.toLowerCase().endsWith('.pdf')) {
+      const parser = new PDFParse({ data: buffer });
+      const data = await parser.getText();
+      text = data.text;
+    } else {
+      text = new TextDecoder('utf-8').decode(buffer);
     }
 
-    const answer = await answerWithContext(question, topChunks);
+    if (!text.trim()) {
+      return NextResponse.json({ error: 'Uploaded document is empty' }, { status: 400 });
+    }
 
-    return NextResponse.json({ answer, sources: topChunks });
+    const chunks = chunkText(text);
+
+    return NextResponse.json({
+      chunks: chunks.map(({ id, text }) => ({ id, text })),
+      totalChunks: chunks.length,
+      fileName,
+    });
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: 'Query failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
   }
 }
